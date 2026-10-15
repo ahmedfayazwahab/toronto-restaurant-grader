@@ -1,0 +1,164 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Restaurant Health Report</title><link rel="stylesheet" href="style.css"></head><body><div class="w wide">
+<div class="top"><a class="brand" href="./">← Vamplus Toronto Restaurant Grader</a></div>
+<div id="app"></div>
+<footer class="foot"><p>Free beta. Business data from Google Maps. Restaurant list: City of Toronto DineSafe (Open Government Licence – Toronto).</p><p><a href="terms.html">Terms of use</a> · <a href="privacy.html">Privacy</a> · <a href="credits.html">Data sources &amp; credits</a></p></footer>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safe=u=>/^https?:\/\//i.test(u||'')?esc(u):'#';
+const qs=new URLSearchParams(location.search);
+let CUT={good:80,fair:60};
+const gradeOf=r=>r*100>=CUT.good?'Good':r*100>=CUT.fair?'Fair':'Poor';
+const colour=g=>g==='Good'?'var(--good)':g==='Fair'?'var(--fair)':g==='Poor'?'var(--poor)':'var(--na)';
+const ord=n=>{const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0])};
+// Same formula as lib/strength.js: rating weighted by review count.
+const PRIOR_N=150,PRIOR_R=4.3,FEW=100;
+const strength=c=>{const v=c.reviews||0;return c.rating==null?0:(v/(v+PRIOR_N))*c.rating+(PRIOR_N/(v+PRIOR_N))*PRIOR_R};
+const looksNew=c=>(c.reviews||0)<FEW||/opening soon|coming soon|grand opening/i.test(c.name||'');
+const money=n=>'$'+n.toLocaleString();
+const rel=u=>u&&u.startsWith('/api/')?u.slice(1):u;
+const host=u=>{try{return new URL(u).host.replace(/^www\./,'')}catch{return ''}};
+
+/* ---------- scan stage ---------- */
+const ORDER=['find','site','speed','crawl','reviews','blogs','competitors','rank','audit','coverage','score'];
+function scanUI(){
+  $('#app').innerHTML=`<div class="scan"><div><h1 style="margin:0 0 6px;font-size:28px" id="stitle">Scanning your restaurant…</h1><p class="sub" id="sinfo">A fresh scan takes about a minute.</p>
+  <div class="collage" id="collage"><div class="sweep"></div>${'<div class="ghost"></div>'.repeat(6)}</div></div>
+  <div class="steps"><h3>What we're checking</h3><div class="pbar"><i id="pb"></i></div><div id="stl"></div></div></div>`;
+}
+const seen=new Set(),done=new Set();let tiles=0;
+function addImage(src,kind){
+  src=rel(src);
+  if(seen.has(src)||tiles>=18)return;seen.add(src);
+  const c=$('#collage');if(!c)return;
+  const im=new Image();im.alt='';im.referrerPolicy='no-referrer';
+  im.onload=()=>{if(tiles>=18)return;if(im.naturalWidth<400||im.naturalHeight<250)return;tiles++;const g=c.querySelector('.ghost');if(g)g.remove();c.appendChild(im)};
+  im.src=src;
+}
+function onProgress(ev){
+  if(ev.type==='info'){const n=ev.text.replace('Found ','');$('#stitle').textContent='Scanning '+n+'…';$('#sinfo').textContent=ev.text+'. Looking at everything customers can find online.';return}
+  if(ev.type==='image')return addImage(ev.src,ev.kind);
+  if(ev.type!=='step')return;
+  const l=$('#stl');let el=document.getElementById('st-'+ev.id);
+  if(!el){el=document.createElement('div');el.id='st-'+ev.id;el.innerHTML='<i></i><span></span>';el.querySelector('span').textContent=ev.label;l.appendChild(el)}
+  el.className='stp '+(ev.state==='done'?'done':'run');el.querySelector('i').textContent=ev.state==='done'?'✓':'';
+  if(ev.state==='done')done.add(ev.id);
+  $('#pb').style.width=Math.min(96,Math.round(done.size/ORDER.length*100))+'%';
+}
+
+/* ---------- report ---------- */
+function ringBig(score,max,c){const r=88,L=2*Math.PI*r,o=L*(1-(score??0)/max);return `<svg viewBox="0 0 200 200" style="--c:${c}"><circle class="t" cx="100" cy="100" r="${r}" stroke-width="16"/><circle class="v" cx="100" cy="100" r="${r}" stroke-width="16" stroke-dasharray="${L}" stroke-dashoffset="${o}"/></svg>`}
+function ringMini(score,max,c){const r=18,L=2*Math.PI*r,o=L*(1-(score??0)/max);return `<svg viewBox="0 0 44 44" width="44" height="44" style="--c:${c}"><circle class="t" cx="22" cy="22" r="${r}" stroke-width="5"/><circle class="v" cx="22" cy="22" r="${r}" stroke-width="5" stroke-dasharray="${L}" stroke-dashoffset="${o}"/></svg>`}
+function section(n,title,sub,list,sc){
+  const g=sc.score==null?null:gradeOf(sc.earned/sc.possible);
+  let h=`<section class="card"><div class="sh"><div><span class="num">${n}</span><h2>${title}</h2><p class="sub">${sub}</p></div><div class="sc" style="--c:${colour(g)}"><b>${sc.score??'–'}</b><span>of ${sc.max}</span><em>${g||'Not scored'}</em></div></div>`;
+  let cur=null;for(const c of list){if(c.group!==cur){h+=`<h3>${esc(c.group)}</h3>`;cur=c.group}
+    h+=`<div class="row ${c.status}"><span class="ic">${{pass:'✓',partial:'◐',fail:'✕',na:'–'}[c.status]}</span><div><b>${esc(c.name)}</b><p>${esc(c.note)}</p></div><span class="pt">${c.weight&&c.status!=='na'?(c.status==='partial'?c.earned+' of '+c.weight:c.weight)+' pts':''}</span></div>`}
+  return h+'</section>'}
+const stars=n=>'★'.repeat(n)+'☆'.repeat(5-n);
+
+function render(r){
+  const m=r.meta,s=r.scores,g=s.overall==null?null:gradeOf(s.overall/100),c=colour(g);document.title=m.name+' — Health Report';
+  const all=[...r.checks.search,...r.checks.guest,...r.checks.local];
+  const fails=all.filter(x=>x.status==='fail'||x.status==='partial').sort((a,b)=>(b.weight-b.earned)-(a.weight-a.earned));
+  // Top 5 money-losing problems, at most one per group (e.g. one "Page title" issue, one "Usability" issue), biggest point loss first.
+  const seenGroup=new Set(),top5=[];
+  for(const x of fails){if(seenGroup.has(x.group))continue;seenGroup.add(x.group);top5.push(x);if(top5.length===5)break}
+  const more5=fails.filter(x=>!top5.includes(x)).slice(0,5);
+  const comp=[...r.competitors].sort((a,b)=>strength(b)-strength(a));
+  const idx=comp.findIndex(x=>x.self),rank=idx>=0?idx+1:null;
+  const side=`<aside class="side" style="--c:${c}"><div class="ring">${ringBig(s.overall,100,c)}<div class="n"><div><b>${s.overall??'–'}</b><span>of 100</span></div></div></div>
+  <div class="gl">Online health grade</div><div class="gv">${g||'–'}${s.incomplete?' <span class="badge">incomplete</span>':''}</div><div class="subs">
+  ${[['Search Results',s.search],['Guest Experience',s.guest],['Local & Reputation',s.local]].map(([t,x])=>{const gg=x.score==null?null:gradeOf(x.earned/x.possible);return `<div class="sub-r"><div class="mini">${ringMini(x.score,x.max,colour(gg))}</div><div><b>${t}</b><em style="color:${colour(gg)}">${gg||'Not scored'}</em></div><small>${x.score??'–'} of ${x.max}</small></div>`}).join('')}</div>
+  <p class="sub" style="margin-top:18px;text-align:center">${s.reviewed} things reviewed, ${s.failing} need work</p></aside>`;
+
+  const e=r.estimate;
+  const moneyCard=`<div class="card2 money"><h2>${e&&fails.length?`You could be losing an estimated <span class="amt">~${money(e.mid)}/month</span> due to ${fails.length} problems`:fails.length?`${fails.length} things need work`:'No problems found'}${e?'<span class="badge">estimate</span>':''}</h2>
+  <div class="biz">${m.photo?`<img src="${esc(rel(m.photo))}" alt="">`:'<div class="ph"></div>'}<div><b>${esc(m.name)}</b><small>${m.website?esc(host(m.website)):'No website listed'}</small></div></div>
+  <ul class="issues">${top5.map(x=>`<li>${esc(x.note.length>110?x.name:x.note)}</li>`).join('')||'<li style="color:var(--mut)">Nothing to fix right now.</li>'}</ul>
+  ${more5.length?`<h3 style="margin:20px 0 8px">5 more things costing you</h3><ul class="issues">${more5.map(x=>`<li>${esc(x.note.length>110?x.name:x.note)}</li>`).join('')}</ul>`:''}
+  ${e?`<p class="sub" style="margin:12px 0 0"><b>This dollar figure is a rough estimate</b> based on public review counts and typical industry assumptions. It is not a measurement of your actual sales.</p>`:''}
+  ${e?`<details class="how"><summary>How we estimated this (range ${money(e.low)}–${money(e.high)})</summary><p>A rough estimate from public data and typical industry assumptions. It is not a measurement of your real sales.</p><ul>${e.assumptions.map(a=>`<li>${esc(a)}</li>`).join('')}</ul></details>`:''}</div>`;
+
+  const sameN=comp.filter(x=>x.cuisine&&!x.self).length;
+  const compCard=`<div class="card2"><h2>${rank===1?'You lead nearby competitors':rank?`${rank-1} nearby competitor${rank>2?'s have':' has'} a stronger reputation`:'Nearby competitors'}</h2><p class="sub">${comp.length} restaurants nearby${m.cuisine&&sameN?`, including ${sameN} that serve ${esc(m.cuisine)} food`:''}. Ranked by rating <i>and</i> review count, so a high rating from a few reviews doesn't outrank a strong rating from thousands.</p>
+  ${comp.map((x,i)=>`<div class="cr ${x.self?'me':''}"><div class="ico">🍴</div><div><b>${esc(x.name)}${x.self?' (you)':''}</b><small>${x.rating??'–'} ★ · ${x.reviews.toLocaleString()} reviews${x.cuisine&&m.cuisine?` · <span class="chip ok" style="margin:0">${esc(m.cuisine)}</span>`:''}${looksNew(x)&&!x.self?` · <span class="chip" style="margin:0" title="Too few reviews to compare fairly. It may be newly opened.">Few reviews</span>`:''}</small></div><span class="ord">${ord(i+1)}</span></div>`).join('')}</div>`;
+
+  const goodCard=r.positives?.length?`<div class="card2"><h2>What you're doing well</h2><p class="sub">Keep these up</p><ul class="issues goods">${r.positives.map(p=>`<li>${esc(p)}</li>`).join('')}</ul></div>`:'';
+  const notes=(s.incomplete?`<div class="note warn"><b>Incomplete score.</b> ${esc(s.incompleteReason||'Some checks could not be run.')} Treat this number as a partial result, and don't compare it with other restaurants.</div>`:'')+r.notes.map(n=>`<div class="note warn">${esc(n)}</div>`).join('');
+
+  const rankCard=`<div class="card2"><h2>This is how you're doing online</h2><p class="sub">Where you appear in Google Maps search. Approximate: based on Google Places results, not the exact map pack. Not part of the score.</p>
+  ${r.rankings.map(k=>`<div class="rk"><div><b>${esc(k.label)}</b></div><div>${k.rank?`<span class="chip ${k.rank<=3?'ok':''}">#${k.rank} of ${k.of}</span>`:`<span class="chip bad">Not in top ${k.of||20}</span>`}${k.top?`<span class="chip">#1: ${esc(k.top)}</span>`:''}</div></div>`).join('')}</div>`;
+
+  let beat='';
+  if(r.competitorAudits?.length){beat=`<div class="card2"><h2>How your top competitors are beating you</h2><p class="sub">A quick audit of the ${r.competitorAudits.length} best-rated restaurants nearby. Scores use only the checks run for everyone (not the page crawl or reputation), so they differ from your main score above. A ~ means we couldn't read their site.</p>
+  ${r.beatingYou?.length?`<ul class="sum">${r.beatingYou.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:'<p class="hint">None of them clearly out-performs you on the things we measure.</p>'}
+  <div class="cmp"><div style="border-color:var(--accent)"><div class="s"><b>${esc(m.name)} (you)</b><span class="pill g-${r.benchMe==null?'none':gradeOf(r.benchMe/100)}">${r.benchMe??s.overall??'–'}</span></div><small class="m">${m.rating??'–'} ★ · ${m.reviews.toLocaleString()} reviews${r.speed?` · speed ${r.speed.score}`:''}</small></div>
+  ${r.competitorAudits.map(x=>`<div><div class="s"><b>${esc(x.name)}</b><span class="pill g-${x.bench==null?'none':gradeOf(x.bench/100)}">${x.incomplete?'~':''}${x.bench??'–'}</span></div><small class="m">${x.rating??'–'} ★ · ${x.reviews.toLocaleString()} reviews${x.speed!=null?` · speed ${x.speed}`:''}${x.website?'':' · no website'}</small>${x.beats.length?`<ul>${x.beats.map(b=>`<li>${esc(b.text)}</li>`).join('')}</ul>`:'<ul><li>Not ahead of you on anything we measure</li></ul>'}</div>`).join('')}</div></div>`}
+
+  const sent=r.reviews?.sentiment,items=r.reviews?.items||[];
+  let rv=`<div class="card2"><h2>What guests are saying</h2><p class="sub">${items.length} most relevant Google reviews (Google shares up to 5 per restaurant)</p>`;
+  if(sent&&!sent.skipped){const sc=colour(sent.sentiment==='positive'?'Good':sent.sentiment==='mixed'?'Fair':'Poor');
+    rv+=`<div style="display:flex;gap:10px;align-items:center"><span class="pill" style="background:${sc}">${esc(sent.sentiment)}</span><b>${sent.score}/100 sentiment</b></div><div class="bar" style="--c:${sc}"><i style="width:${sent.score}%"></i></div><p>${esc(sent.summary)}</p>
+    <div class="cols"><div><h4>What they love</h4><ul>${sent.loved.map(x=>`<li><b>${esc(x.topic)}:</b> ${esc(x.detail)}</li>`).join('')||'<li>–</li>'}</ul></div><div><h4>What they complain about</h4><ul>${sent.complaints.map(x=>`<li><b>${esc(x.topic)}:</b> ${esc(x.detail)}</li>`).join('')||'<li>No complaints in these reviews</li>'}</ul></div></div>
+    <div class="tags">${sent.themes.map(t=>`<span class="${t.sentiment==='positive'?'p':t.sentiment==='negative'?'n':''}">${esc(t.topic)}${t.mentions?' · '+t.mentions:''}</span>`).join('')}</div>
+    ${sent.suggestion?`<p class="hint" style="margin-top:12px"><b>Try this:</b> ${esc(sent.suggestion)}</p>`:''}`}
+  else if(sent?.skipped)rv+=`<p class="hint">${esc(sent.skipped)}</p>`;
+  rv+=items.map(x=>`<div class="rev"><b>${esc(x.author)}</b> <span class="st">${stars(x.rating||0)}</span> <small class="m">${esc(x.when)}</small>${x.text?`<p>${esc(x.text)}</p>`:''}</div>`).join('')+'</div>';
+
+  const mt=r.mentions||{};let blog='';
+  const TYPE={blog:'Blog',press:'Press',article:'Article'};
+  if(!mt.configured)blog=`<div class="card2"><h2>Blogs and press about you</h2><p class="hint">${esc(mt.note||'Not set up.')}</p></div>`;
+  else{const miss=['Yelp','TripAdvisor','OpenTable'].filter(p=>!mt.listings.some(l=>l.platform===p));
+    const blogs=mt.articles.filter(a=>a.type==='blog'||a.type==='press').length;
+    const an=mt.analysis;let ai='';
+    if(an&&!an.skipped){
+      ai=`<div class="ai"><div class="aih"><b>What this means for you</b><span class="badge">AI analysis · ${an.sourcesRead} page${an.sourcesRead===1?'':'s'} read</span></div><p>${esc(an.summary)}</p>
+      ${an.themes.length?`<h3>What they say</h3><div class="tags">${an.themes.map(t=>`<span class="${t.sentiment==='positive'?'p':t.sentiment==='negative'?'n':''}" title="${esc(t.detail)}">${esc(t.topic)}</span>`).join('')}</div><ul class="plain">${an.themes.map(t=>`<li><b>${esc(t.topic)}:</b> ${esc(t.detail)}</li>`).join('')}</ul>`:''}
+      ${an.keywords.length?`<h3>Keywords to use on your site</h3><div class="tags">${an.keywords.map(k=>`<span class="p">${esc(k)}</span>`).join('')}</div>`:''}
+      ${an.seoActions.length?`<h3>What to improve</h3><ol class="acts">${an.seoActions.map(a=>`<li><div><b>${esc(a.action)}</b><p>${esc(a.why)}</p></div><span class="eff e-${a.effort}">${a.effort} effort</span></li>`).join('')}</ol>`:''}
+      ${an.contentGaps.length?`<h3>What your site is missing</h3><ul class="plain">${an.contentGaps.map(g=>`<li><b>${esc(g.gap)}</b> ${esc(g.why)}</li>`).join('')}</ul>`:''}
+      ${an.blogIdeas.length?`<h3>Blog posts you could publish</h3><ul class="plain">${an.blogIdeas.map(b=>`<li><b>${esc(b.title)}</b> ${esc(b.angle)}</li>`).join('')}</ul>`:''}
+      ${an.outreach.length?`<h3>Ways to get more coverage</h3><ul class="plain">${an.outreach.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
+      <p class="sub" style="margin-top:12px">Written by AI from the pages we could read. Check suggestions before acting on them.</p></div>`}
+    else if(an?.skipped)ai=`<p class="hint">${esc(an.skipped)}</p>`;
+    blog=`<div class="card2"><h2>Blogs and press about you</h2><p class="sub">${blogs?`${blogs} blog post${blogs>1?'s':''} or press mention${blogs>1?'s':''} found`:mt.articles.length?'No independent blog posts or press found. Other pages that mention you are listed below':'No independent blog posts or press found'} · from ${esc(mt.provider)}</p>${mt.error?`<p class="hint">${esc(mt.error)}</p>`:''}
+    ${ai}
+    ${mt.articles.length?'<h3>Pages we found</h3>':''}${mt.articles.map(a=>`<a class="lk" href="${safe(a.url)}" target="_blank" rel="noopener"><b>${esc(a.title)}</b><small><span class="chip ${a.type==='blog'?'ok':''}" style="margin:0 6px 0 0">${TYPE[a.type]||'Article'}</span>${esc(a.host)}${a.when?' · '+esc(a.when):''}</small><small style="display:block">${esc(a.snippet)}</small></a>`).join('')||(mt.error?'':'<p class="hint">No blog posts or articles found. Getting food bloggers to write about you helps your search ranking.</p>')}
+    ${mt.listings.length?`<h3>Where you're listed</h3><div class="tags" style="margin-bottom:10px">${mt.listings.map(l=>`<a class="chip ok" href="${safe(l.url)}" target="_blank" rel="noopener">${esc(l.platform)}</a>`).join('')}</div>`:''}
+    ${miss.length?`<p class="hint">Didn't show up in search results for: ${miss.map(esc).join(', ')}. If you aren't listed there, claim those listings so your name, phone and hours match everywhere.</p>`:''}
+    ${mt.directories?.length?`<details class="how"><summary>${mt.directories.length} directory pages also mention you</summary>${mt.directories.map(a=>`<a class="lk" href="${safe(a.url)}" target="_blank" rel="noopener"><b>${esc(a.title)}</b><small>${esc(a.host)}</small></a>`).join('')}</details>`:''}</div>`}
+
+  let health='';const cr=r.crawl;
+  if(cr||r.menu||r.structured){const bad=(n)=>n?'bad':'good';
+    health=`<div class="card2"><h2>What's broken on your website</h2><p class="sub">${cr?`We followed ${cr.crawled} pages and checked ${cr.imagesChecked} images`:'We could not crawl the site'}</p>
+    ${cr?`<div class="stats"><div class="${bad(cr.broken.length)}"><b>${cr.broken.length}</b><span>broken pages</span></div><div class="${bad(cr.brokenImages.length)}"><b>${cr.brokenImages.length}</b><span>broken images</span></div><div class="${bad(cr.mixed)}"><b>${cr.mixed}</b><span>insecure resources</span></div><div class="${bad(cr.slow.length)}"><b>${cr.slow.length}</b><span>slow pages (3s+)</span></div><div class="${bad(cr.missingTitle+cr.missingH1+cr.missingDesc)}"><b>${cr.missingTitle+cr.missingH1+cr.missingDesc}</b><span>missing title, heading or description</span></div><div class="${bad(cr.thin)}"><b>${cr.thin}</b><span>pages with almost no text</span></div></div>
+    ${cr.broken.map(b=>`<p class="hint" style="margin:4px 0">Broken: ${esc(b.url)} (${esc(b.status)})</p>`).join('')}`:''}
+    <div class="stats"><div class="${r.menu?.kind==='text'?'good':'bad'}"><b style="font-size:16px">${{text:'Readable text',pdf:'PDF only',image:'Images only',none:'Not found',external:'Another site',thin:'Very little text',unknown:'Unclear'}[r.menu?.kind]||'Unknown'}</b><span>menu</span></div>
+    <div class="${r.structured?.restaurant?'good':'bad'}"><b style="font-size:16px">${r.structured?.restaurant?'Yes':'No'}</b><span>restaurant structured data</span></div>
+    <div class="${r.platforms?.length?'bad':'good'}"><b style="font-size:16px">${r.platforms?.length?esc(r.platforms.slice(0,2).join(', ')):'None'}</b><span>outside ordering sites linked</span></div></div></div>`}
+
+  let speed='';if(r.speed){const p=r.speed;speed=`<div class="card2"><h2>Mobile page speed</h2><p class="sub">Google PageSpeed lab test on a simulated phone. Results vary a little between runs.</p><div class="kv"><div><b>Score</b>${p.score} / 100</div><div><b>Main content (LCP)</b>${esc(p.lcp)}</div><div><b>First content (FCP)</b>${esc(p.fcp)}</div><div><b>Speed index</b>${esc(p.si)}</div><div><b>Blocking time</b>${esc(p.tbt)}</div><div><b>Layout shift</b>${esc(p.cls)}</div></div></div>`}
+
+  const head=`<header class="r"><small>Online presence report · scanned ${new Date(r.scannedAt).toLocaleString()}</small><h1>${esc(m.name)}</h1><small>${esc(m.address)}${m.website?` · <a href="${safe(m.website)}" target="_blank" rel="noopener">${esc(host(m.website))}</a>`:' · no website listed'}</small>
+  <div class="links" style="margin-top:8px"><a href="${safe(m.mapsUri)}" target="_blank" rel="noopener">Google Maps</a><a href="${safe(m.reviewLink)}" target="_blank" rel="noopener">Google review link</a><a href="${esc(location.pathname+'?'+new URLSearchParams({...Object.fromEntries(qs),refresh:'1'}))}">Rescan</a></div></header>`;
+
+  $('#app').innerHTML=head+notes+`<div class="layout">${side}<div class="main"><div class="two">${moneyCard}${compCard}</div>${goodCard}${rankCard}${beat}${rv}${blog}${health}
+  ${section(1,'Search Results','Can Google find and rank you?',r.checks.search,s.search)}${section(2,'Guest Experience','Does your website turn visitors into guests?',r.checks.guest,s.guest)}${section(3,'Local & Reputation','Your Google profile, your reviews, and who writes about you',r.checks.local,s.local)}${speed}
+  <div class="note"><b>How this was measured.</b> Website checks come from fetching the live homepage and up to 20 of its pages. Speed comes from Google PageSpeed. Profile data, reviews, rankings and competitors come from the Google Places API. The dollar figure is a rough estimate from public review counts and industry assumptions, not a measurement. Search is worth 30 points, Guest Experience 40, and Local & Reputation 30. Some checks earn partial credit (a half-circle icon). Checks that couldn't be run are left out of the score instead of counted as failures, and the score is marked incomplete when too much is missing.</div>
+  <div class="note disc"><b>About this report.</b> This report was generated automatically from public information on the date shown above: Google Maps (profile, reviews, photos, rankings), the restaurant's own website, web search results, and the City of Toronto's DineSafe list of food premises. It may contain errors or be out of date. The scores, rankings, <b>dollar figures (estimates only)</b>, and AI-written summaries and advice are opinions for general information, not professional, financial or legal advice, and they are not a statement of fact about any business. This service is not affiliated with or endorsed by Google, the City of Toronto, or any restaurant. If you own this restaurant and spot a mistake, see our <a href="terms.html">terms</a> to get in touch.</div></div></div>`;
+}
+
+/* ---------- start ---------- */
+scanUI();
+fetch('api/config').then(r=>r.json()).then(c=>{CUT=c}).catch(()=>{});
+const params=new URLSearchParams();for(const k of ['placeId','estId','refresh'])if(qs.get(k))params.set(k,qs.get(k));
+const es=new EventSource('api/scan?'+params);let finished=false;
+const limitScreen=m=>{finished=true;es.close();$('#app').innerHTML=`<div class="load"><b>Scan limit reached</b><p class="sub" style="max-width:520px;margin:8px auto">${esc(m)}</p><p><a href="./">Back to search</a></p></div>`};
+const fail=m=>{finished=true;es.close();$('#app').innerHTML=`<div class="load"><b class="err">Something went wrong</b><p class="sub">${esc(m)}</p><p><a href="./">Back to search</a></p></div>`};
+es.addEventListener('progress',e=>onProgress(JSON.parse(e.data)));
+es.addEventListener('done',e=>{finished=true;es.close();try{render(JSON.parse(e.data))}catch(x){fail('Could not display the report: '+x.message)}});
+es.addEventListener('fail',e=>{const d=JSON.parse(e.data);d.limit?limitScreen(d.error):fail(d.error)});
+es.onerror=()=>{if(!finished)fail('Lost connection to the server.')};
+</script></body></html>

@@ -1,0 +1,114 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Vamplus Toronto Restaurant Grader backend (Lambda + private S3 data bucket + DynamoDB limits table). Hosted behind the portfolio CloudFront at /restaurantgrader/.
+
+Parameters:
+  OriginSecret:
+    Type: String
+    NoEcho: true
+    MinLength: 20
+    Description: A long random string. CloudFront sends it in the x-origin-verify header; the app rejects requests without it.
+  GoogleApiKey:
+    Type: String
+    NoEcho: true
+  PageSpeedApiKey:
+    Type: String
+    NoEcho: true
+  OpenAIApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+  BraveApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+  ContactEmail:
+    Type: String
+    Default: ''
+    Description: Shown on the legal pages. Leave empty to show a link to the portfolio site instead.
+  BasePath:
+    Type: String
+    Default: /restaurantgrader
+  ScansPerVisitorPerDay:
+    Type: Number
+    Default: 8
+  ScansPerDay:
+    Type: Number
+    Default: 80
+  MaxConcurrency:
+    Type: Number
+    Default: 0
+    Description: Cap on simultaneous scans. 0 = no cap. Only set this if your account's Lambda concurrency limit is 100 or more.
+
+Conditions:
+  CapConcurrency: !Not [!Equals [!Ref MaxConcurrency, 0]]
+
+Resources:
+  DataBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true }
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-cached-reports
+            Status: Enabled
+            ExpirationInDays: 30
+
+  LimitsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions: [{ AttributeName: pk, AttributeType: S }]
+      KeySchema: [{ AttributeName: pk, KeyType: HASH }]
+      TimeToLiveSpecification: { AttributeName: ttl, Enabled: true }
+
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{ Effect: Allow, Principal: { Service: lambda.amazonaws.com }, Action: 'sts:AssumeRole' }]
+      ManagedPolicyArns: [arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole]
+      Policies:
+        - PolicyName: grader-data
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - { Effect: Allow, Action: ['s3:GetObject', 's3:PutObject'], Resource: !Sub '${DataBucket.Arn}/*' }
+              - { Effect: Allow, Action: ['dynamodb:UpdateItem'], Resource: !GetAtt LimitsTable.Arn }
+
+  Function:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: restaurant-grader
+      Runtime: nodejs22.x
+      Handler: lambda.handler
+      Role: !GetAtt FunctionRole.Arn
+      Timeout: 120
+      MemorySize: 1024
+      ReservedConcurrentExecutions: !If [CapConcurrency, !Ref MaxConcurrency, !Ref 'AWS::NoValue']
+      # Placeholder only. After the stack is created, upload restaurantgrader-lambda.zip in the Lambda console (see DEPLOY.md).
+      Code:
+        ZipFile: |
+          exports.handler = async () => ({ statusCode: 503, body: 'Upload the real code package (see DEPLOY.md).' });
+      Environment:
+        Variables:
+          DATA_BUCKET: !Ref DataBucket
+          COUNTER_TABLE: !Ref LimitsTable
+          BASE_PATH: !Ref BasePath
+          ORIGIN_SECRET: !Ref OriginSecret
+          GOOGLE_API_KEY: !Ref GoogleApiKey
+          PAGESPEED_API_KEY: !Ref PageSpeedApiKey
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+          BRAVE_API_KEY: !Ref BraveApiKey
+          CONTACT_EMAIL: !Ref ContactEmail
+          LIMIT_SCANS_PER_IP_PER_DAY: !Ref ScansPerVisitorPerDay
+          LIMIT_SCANS_PER_DAY: !Ref ScansPerDay
+
+Outputs:
+  FunctionName: { Value: !Ref Function }
+  DataBucketName: { Value: !Ref DataBucket }
+  NextStep: { Value: 'Open the restaurant-grader function in the Lambda console: Code > Upload from > .zip file (restaurantgrader-lambda.zip), then Configuration > Function URL. See DEPLOY.md.' }

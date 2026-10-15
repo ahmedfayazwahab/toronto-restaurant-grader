@@ -1,0 +1,19 @@
+{
+  "name": "toronto-restaurant-grader",
+  "version": "1.0.0",
+  "description": "Free online-presence health check for Toronto restaurants: scores a restaurant's Google profile, website, speed and reputation, and compares it with nearby competitors.",
+  "main": "server.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "type": "module",
+  "license": "ISC",
+  "dependencies": {
+    "cheerio": "^1.2.0"
+  }
+}

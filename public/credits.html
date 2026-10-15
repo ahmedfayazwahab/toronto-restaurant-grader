@@ -1,0 +1,30 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Data sources & credits · Vamplus Toronto Restaurant Grader</title><meta name="robots" content="noindex"><link rel="stylesheet" href="style.css"></head><body><div class="w">
+<div class="top"><a class="brand" href="./">← Vamplus Toronto Restaurant Grader</a></div>
+<main class="doc">
+<h1>Data sources & credits</h1><p class="upd">Last updated October 13, 2026. This is a free beta service.</p>
+
+<h2>City of Toronto: DineSafe</h2>
+<div class="box">Contains information licensed under the <a href="https://open.toronto.ca/open-data-licence/" target="_blank" rel="noopener">Open Government Licence – Toronto</a>.</div>
+<p>The list of restaurants you search comes from the City of Toronto's <a href="https://open.toronto.ca/dataset/dinesafe/" target="_blank" rel="noopener">DineSafe</a> open dataset. We use each establishment's name, address, phone number and location. We cleaned the list by merging duplicate entries and hiding entries that are clearly not restaurants (such as schools and child-care centres). We were not able to remove every one.</p>
+<p>The data was downloaded in October 2026 and may be out of date. This service does not show DineSafe inspection results. For official inspection information, use the City's <a href="https://www.toronto.ca/community-people/health-wellness-care/health-programs-advice/food-safety/dinesafe/" target="_blank" rel="noopener">DineSafe</a> site. This service is not endorsed by or affiliated with the City of Toronto.</p>
+
+<h2>Google</h2>
+<p>Restaurant profile details, ratings, reviews, photos, nearby places and map-search rankings come from the Google Maps Platform (Places API). Website speed and accessibility results come from Google PageSpeed Insights. Business information © Google. This service is not endorsed by or affiliated with Google.</p>
+
+<h2>Web search</h2>
+<p>Blog posts, articles and listings that mention a restaurant are found with the Brave Search API.</p>
+
+<h2>AI-written text</h2>
+<p>Review summaries, blog analysis and suggestions are written with OpenAI language models from the public text described in our <a href="privacy.html">privacy policy</a>. AI text can contain mistakes.</p>
+
+<h2>Restaurants' websites</h2>
+<p>We read each restaurant's public website to check things like page titles, hours, menus and speed. We identify ourselves as "RestaurantGraderBot/1.0". Website content belongs to the restaurant that publishes it.</p>
+
+<h2>Questions</h2>
+<p>Contact us through <span class="contact">the contact details on the site</span>. See also our <a href="terms.html">terms of use</a> and <a href="privacy.html">privacy policy</a>.</p>
+
+</main>
+<footer class="foot"><p><a href="terms.html">Terms of use</a> · <a href="privacy.html">Privacy</a> · <a href="credits.html">Data sources &amp; credits</a></p></footer>
+</div>
+<script>fetch('api/config').then(r=>r.json()).then(c=>{document.querySelectorAll('.contact').forEach(e=>{e.innerHTML=c.contactEmail?'<a href="mailto:'+c.contactEmail.replace(/[^a-zA-Z0-9@._+-]/g,'')+'">'+c.contactEmail.replace(/[<>&"]/g,'')+'</a>':'the contact details on <a href="https://ahmedfayazwahab.ca">ahmedfayazwahab.ca</a>'})}).catch(()=>{});</script>
+</body></html>

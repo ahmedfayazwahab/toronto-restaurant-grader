@@ -1,0 +1,51 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Privacy policy · Vamplus Toronto Restaurant Grader</title><meta name="robots" content="noindex"><link rel="stylesheet" href="style.css"></head><body><div class="w">
+<div class="top"><a class="brand" href="./">← Vamplus Toronto Restaurant Grader</a></div>
+<main class="doc">
+<h1>Privacy policy</h1><p class="upd">Last updated October 13, 2026. This is a free beta service.</p>
+
+<div class="box"><b>In short:</b> There are no accounts, no ads and no tracking cookies. We use your visitor address only to enforce usage limits, and we keep only a scrambled (hashed) version of it for about two days.</div>
+
+<h2>1. What we collect</h2>
+<ul>
+<li><b>What you type in the search box.</b> It is used only to find matching restaurants in our list, and the app does not save it. Our hosting provider may keep technical request logs for security and troubleshooting.</li>
+<li><b>Which restaurants get scanned.</b> We keep each generated report so it can be reused. A "Recent restaurant reports" list on the home page shows the names and scores of the last 10 restaurants scanned, but not who scanned them.</li>
+<li><b>Your IP address</b>, only to apply daily scan limits. It is turned into a one-way hash before it is stored, and the hash expires after about two days. We do not store your raw IP address in the app's database.</li>
+<li>We don't ask for your name or email, we have no accounts, and we do not set cookies or use analytics or advertising trackers.</li>
+</ul>
+
+<h2>2. Information about restaurants</h2>
+<p>Reports are built from public business information: Google Maps profiles (including ratings, public reviews with the reviewer's display name as shown by Google, and photos), restaurant websites, web search results, and the City of Toronto's DineSafe list. This is information about businesses, not about you.</p>
+
+<h2>3. Who else sees data</h2>
+<ul>
+<li><b>Google</b> (Maps Platform and PageSpeed Insights) receives restaurant names, addresses and website addresses so it can return profile and speed information.</li>
+<li><b>OpenAI</b> receives excerpts of public review text and public web page text about a restaurant, plus a summary of website issues, to write summaries and suggestions. It does not receive your personal information.</li>
+<li><b>Brave Search</b> receives search queries made of a restaurant's name and city.</li>
+<li><b>Amazon Web Services</b> hosts the Service (CloudFront, Lambda, S3 and DynamoDB).</li>
+</ul>
+<p>We don't sell your information.</p>
+
+<h2>4. How long we keep it</h2>
+<ul>
+<li>Generated reports are reused for 24 hours and are deleted from storage within about 30 days.</li>
+<li>Competitor check results are reused for up to 7 days and are deleted within about 30 days.</li>
+<li>Usage-limit counters (containing hashed addresses only) expire after about 2 days.</li>
+</ul>
+
+<h2>5. Your choices</h2>
+<p>If you own a restaurant and want its report removed or corrected, or you have a question about your information, contact us at <span class="contact">the contact details on the site</span>. We'll respond promptly.</p>
+
+<h2>6. Children</h2>
+<p>The Service is for business use and is not directed at children.</p>
+
+<h2>7. Canadian privacy law</h2>
+<p>We aim to handle personal information in line with applicable Canadian privacy law, including PIPEDA, by collecting as little as possible.</p>
+
+<h2>8. Changes</h2>
+<p>We may update this policy. The date at the top shows the latest change.</p>
+
+</main>
+<footer class="foot"><p><a href="terms.html">Terms of use</a> · <a href="privacy.html">Privacy</a> · <a href="credits.html">Data sources &amp; credits</a></p></footer>
+</div>
+<script>fetch('api/config').then(r=>r.json()).then(c=>{document.querySelectorAll('.contact').forEach(e=>{e.innerHTML=c.contactEmail?'<a href="mailto:'+c.contactEmail.replace(/[^a-zA-Z0-9@._+-]/g,'')+'">'+c.contactEmail.replace(/[<>&"]/g,'')+'</a>':'the contact details on <a href="https://ahmedfayazwahab.ca">ahmedfayazwahab.ca</a>'})}).catch(()=>{});</script>
+</body></html>

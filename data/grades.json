@@ -1,0 +1,6 @@
+{
+ "good": 65,
+ "fair": 45,
+ "sample": 20,
+ "basis": "Calibrated on a random sample of restaurant-like Toronto businesses: Good is roughly the top quarter, Poor the bottom quarter. Small sample; rerun scripts/calibrate.js with a larger count to refine."
+}

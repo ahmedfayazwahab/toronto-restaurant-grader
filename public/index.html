@@ -1,0 +1,21 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Vamplus Toronto Restaurant Grader</title><link rel="stylesheet" href="style.css"></head><body><div class="w">
+<div class="top"><a class="brand" href="./">Vamplus Toronto Restaurant Grader</a></div>
+<div class="hero-s"><h1>Enter your restaurant name to see your online health score</h1><p>We check your website, Google profile and speed, and compare you to your competitors.</p>
+<div class="sb"><input id="q" type="text" autocomplete="off" placeholder="Start typing a restaurant name…" autofocus><button class="go" id="go" aria-label="Search">→</button><div class="dd" id="dd" hidden></div></div>
+<div class="stat" id="stat"></div></div>
+<div id="recentWrap" hidden><h2 class="sec">Recent restaurant reports</h2><p class="sub">The last 10 restaurants scanned.</p><div class="grid" id="tests"></div></div>
+<footer class="foot"><p>Free beta. Scores, rankings and dollar figures are automated <b>estimates</b> from public data, not professional advice.</p><p><a href="terms.html">Terms of use</a> · <a href="privacy.html">Privacy</a> · <a href="credits.html">Data sources &amp; credits</a></p></footer>
+</div>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let items=[],on=-1,t;
+const dd=$('#dd'),q=$('#q');
+function draw(){dd.hidden=!q.value.trim();if(dd.hidden)return;dd.innerHTML=items.length?items.map((r,i)=>`${r.similar&&(i===0||!items[i-1].similar)?'<div class="empty" style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;padding:8px 20px;background:var(--bg)">Did you mean…</div>':''}<div data-i="${i}" class="${i===on?'on':''}"><b>${esc(r.name)}</b><small>${esc(r.address)}</small></div>`).join(''):'<div class="empty">No matching restaurants. Try fewer letters.</div>'}
+function pick(i){const r=items[i];if(r)location.href='report.html?estId='+encodeURIComponent(r.id)}
+q.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(async()=>{const v=q.value.trim();if(v.length<2){items=[];return draw()}items=await (await fetch('api/search?q='+encodeURIComponent(v))).json();on=-1;draw()},120)});
+q.addEventListener('keydown',e=>{if(e.key==='ArrowDown'){on=Math.min(on+1,items.length-1);draw();e.preventDefault()}else if(e.key==='ArrowUp'){on=Math.max(on-1,0);draw();e.preventDefault()}else if(e.key==='Enter')pick(on>=0?on:0)});
+dd.addEventListener('mousedown',e=>{const d=e.target.closest('[data-i]');if(d)pick(+d.dataset.i)});
+$('#go').onclick=()=>pick(on>=0?on:0);document.addEventListener('click',e=>{if(!e.target.closest('.sb'))dd.hidden=true});q.addEventListener('focus',draw);
+fetch('api/stats').then(r=>r.json()).then(s=>$('#stat').textContent=`Searching ${s.restaurants.toLocaleString()} Toronto food premises (from the City's DineSafe list)`);
+fetch('api/recent').then(r=>r.json()).then(l=>{if(!l.length)return;$('#recentWrap').hidden=false;$('#tests').innerHTML=l.map(t=>`<a class="tile" href="report.html?placeId=${encodeURIComponent(t.placeId)}"><div><b>${esc(t.name)}</b><small>${t.rating??'–'} ★ on Google · ${esc(t.when)}</small></div><span class="pill g-${t.grade||'none'}">${t.incomplete?'~':''}${t.overall??'–'}</span></a>`).join('')});
+</script></body></html>

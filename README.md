@@ -6,6 +6,8 @@
 
 > Scores, rankings and dollar figures are automated **estimates** built from public data. They are not facts, measurements of real sales, or professional advice. This project is not affiliated with Google, the City of Toronto, or any restaurant.
 
+![The home page: a search box for Toronto restaurants, with recent reports listed below](docs/screenshots/home.png)
+
 ---
 
 ## What it does (in plain language)
@@ -25,6 +27,18 @@ This tool is a health check-up for that online presence. It looks at what a cust
    - how it compares with nearby competitors, including ones serving the same cuisine
    - a summary of what guests say in Google reviews
    - blogs and press that mention it, with AI-written advice on improving
+
+### What it looks like
+
+**The live scan.** The restaurant's real photos appear while a checklist ticks off each step.
+
+![The scan screen: photos of the restaurant on the left, a checklist of steps with progress on the right](docs/screenshots/scan.jpg)
+
+**The report.** A score out of 100 with three sub-scores, the top problems with a labelled dollar estimate, and a ranked list of nearby competitors, including the same cuisine.
+
+![A report: score ring, the estimated cost of problems, and nearby competitors ranked by reputation](docs/screenshots/report.png)
+
+*The screenshots show example output for real, public businesses.*
 
 ---
 
@@ -187,6 +201,7 @@ scripts/                Data download and dedupe, calibration, packaging, site u
 infra/                  CloudFormation template, CloudFront function, example IAM policy
 data/                   establishments.json (the restaurant list) and grades.json
 DEPLOY.md               Step-by-step AWS deployment guide
+docs/screenshots/       Screenshots used in this README
 ```
 
 ---
@@ -206,7 +221,7 @@ DEPLOY.md               Step-by-step AWS deployment guide
 ## Credits and data licences
 
 - **Restaurant list:** City of Toronto, [DineSafe](https://open.toronto.ca/dataset/dinesafe/). Contains information licensed under the [Open Government Licence – Toronto](https://open.toronto.ca/open-data-licence/). The file `data/establishments.json` is derived from that dataset (name, address, phone and location only, with duplicates merged). It is not endorsed by the City of Toronto.
-- **Business information** (profiles, ratings, reviews, photos) comes from the Google Maps Platform at scan time. No Google-sourced business data is stored in this repository.
+- **Business information** (profiles, ratings, reviews, photos) comes from the Google Maps Platform at scan time. No Google-sourced business data is stored as data files in this repository. The screenshots in `docs/screenshots/` show example output for real, public businesses.
 - **Web search:** Brave Search API. **AI text:** OpenAI.
 - Built with [Claude Code](https://claude.com/claude-code).
 
